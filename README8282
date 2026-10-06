@@ -1,0 +1,97 @@
+local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
+
+local player = Players.LocalPlayer
+local pigsFolder = workspace:WaitForChild("Pigs")
+
+local function getCharacter()
+	return player.Character or player.CharacterAdded:Wait()
+end
+
+local function getRoot(character)
+	return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getPigRoot(pig)
+	if pig:IsA("BasePart") then
+		return pig
+	end
+
+	if pig:IsA("Model") then
+		return pig.PrimaryPart
+			or pig:FindFirstChild("HumanoidRootPart")
+			or pig:FindFirstChildWhichIsA("BasePart")
+	end
+end
+
+local function findNearestPig()
+	local character = getCharacter()
+	local root = getRoot(character)
+	if not root then return nil end
+
+	local nearest = nil
+	local shortestDistance = math.huge
+
+	for _, pig in ipairs(pigsFolder:GetChildren()) do
+		local pigRoot = getPigRoot(pig)
+
+		if pigRoot then
+			local distance = (root.Position - pigRoot.Position).Magnitude
+
+			if distance < shortestDistance then
+				shortestDistance = distance
+				nearest = pig
+			end
+		end
+	end
+
+	return nearest
+end
+
+local function walkToPig(pig)
+	local character = getCharacter()
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = getRoot(character)
+	local pigRoot = getPigRoot(pig)
+
+	if not humanoid or not root or not pigRoot then
+		return false
+	end
+
+	local path = PathfindingService:CreatePath({
+		AgentRadius = 2,
+		AgentHeight = 5,
+		AgentCanJump = true,
+		AgentCanClimb = true
+	})
+
+	path:ComputeAsync(root.Position, pigRoot.Position)
+
+	if path.Status ~= Enum.PathStatus.Success then
+		warn("หาเส้นทางไปหมูไม่สำเร็จ")
+		return false
+	end
+
+	for _, waypoint in ipairs(path:GetWaypoints()) do
+		if waypoint.Action == Enum.PathWaypointAction.Jump then
+			humanoid.Jump = true
+		end
+
+		humanoid:MoveTo(waypoint.Position)
+
+		local reached = humanoid.MoveToFinished:Wait()
+
+		if not reached then
+			return false
+		end
+	end
+
+	return true
+end
+
+local pig = findNearestPig()
+
+if pig then
+	print("กำลังเดินไปหา:", pig.Name)
+	walkToPig(pig)
+	print("ถึง
